@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const { createServer } = require("http");
 const { Server } = require("socket.io");
@@ -6,17 +7,13 @@ const path = require("path");
 const mongoose = require("mongoose");
 const productsRouter = require("./routes/products");
 const cartsRouter = require("./routes/carts");
-const Cart = require("./models/Cart");
-const Product = require("./models/Product");
 const usersRouter = require("./routes/users");
 const passport = require("./config/passport");
 const authRouter = require("./routes/auth");
 
 // Conectar a MongoDB Atlas
 mongoose
-  .connect(
-    "mongodb+srv://yusseffmisseneyt:0aSCx4e5VYoyzSmL@cluster0.p5jgb.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-  )
+  .connect(process.env.MONGO_URI)
   .then(() => console.log("Conectado a MongoDB Atlas"))
   .catch((err) => console.error("Error al conectar a MongoDB", err));
 
@@ -41,7 +38,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Rutas para productos y carritos
+// Rutas para productos, carritos y usuarios
 app.use("/api/products", productsRouter);
 app.use("/api/carts", cartsRouter);
 app.use("/api/users", usersRouter);
@@ -53,10 +50,9 @@ app.get("/realtimeproducts", (req, res) => {
 
 // Ruta principal para la vista de productos según carrito seleccionado
 app.get("/", async (req, res) => {
-  const { limit = 10, page = 1, cartId } = req.query; // Obtener carrito seleccionado y parámetros de paginación
+  const { limit = 10, page = 1, cartId } = req.query;
 
   try {
-    // Buscar productos con paginación
     const limitParsed = parseInt(limit) || 10;
     const pageParsed = parseInt(page) || 1;
     const totalProducts = await Product.countDocuments();
@@ -65,7 +61,6 @@ app.get("/", async (req, res) => {
       .skip((pageParsed - 1) * limitParsed)
       .limit(limitParsed);
 
-    // Buscar carrito seleccionado o crear uno nuevo si no existe
     let cart;
     if (cartId) {
       cart = await Cart.findById(cartId).populate("products.product");
@@ -77,7 +72,7 @@ app.get("/", async (req, res) => {
     res.render("home", {
       title: "Lista de productos",
       products,
-      cartId: cart._id, // Pasar el ID del carrito a la vista
+      cartId: cart._id,
       totalPages,
       page: pageParsed,
       hasPrevPage: pageParsed > 1,

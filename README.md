@@ -1,121 +1,235 @@
-# COMO UTILIZAR LAS API'S CON EJEMPLOS
+## **Cómo utilizar las API's con ejemplos**
 
-## **Crear Usuario:**
+### **1. Crear un administrador y un usuario**
 
-### **POST** `/api/users`
+#### **Crear un administrador**
 
-BODY
+**POST** `/api/users`
+
+**Body:**
+
+```json
 {
-"first_name": "hector",
-"last_name": "missene",
-"email": "hector@ejemplo.com",
-"age": 30,
-"password": "password123",
-"role": "user"
+  "first_name": "Admin",
+  "last_name": "User",
+  "email": "admin@example.com",
+  "age": 30,
+  "password": "adminpassword",
+  "role": "admin"
 }
+```
 
-## **Leer Usuarios:**
+#### **Crear un usuario estándar**
 
-### **GET** `/api/users`
+**POST** `/api/users`
 
-## **Autenticación Usuario:**
+**Body:**
 
-### **POST** `/api/sessions/login`
-
-BODY
+```json
 {
-"email": "johndoe@example.com",
-"password": "password123"
+  "first_name": "Normal",
+  "last_name": "User",
+  "email": "user@example.com",
+  "age": 25,
+  "password": "userpassword"
 }
+```
 
-(Esto obtiene un token jwt)
+---
 
-## **Sesión del Usuario:**
+### **2. Leer Usuarios**
 
-### **GET** `/api/sessions/current`
+**GET** `/api/users`
 
-HEADERS
-`Authorization: Bearer <TOKEN OBTENIDO EN EL ANTERIOR POST DE LOGIN>`
+Devuelve una lista de todos los usuarios registrados.
 
-## **Productos:**
+---
 
-### **GET** `/api/products`
+### **3. Autenticación de Usuario (Login)**
 
-Devuelve la primera página de productos (10 productos por defecto).
+**POST** `/api/sessions/login`
+
+**Body:**
+
+```json
+{
+  "email": "admin@example.com",
+  "password": "adminpassword"
+}
+```
+
+Guarda el token para usarlo en las siguientes solicitudes.
+
+---
+
+### **4. Sesión del Usuario**
+
+**GET** `/api/sessions/current`
+
+**Headers:**
+
+```
+Authorization: Bearer <TOKEN>
+```
+
+Devuelve los datos del usuario actual autenticado.
+
+---
+
+## **Productos**
+
+### **Ver productos (acceso para usuarios y administradores)**
+
+**GET** `/api/products`
+
+**Headers:**
+
+```
+Authorization: Bearer <TOKEN>
+```
+
+Devuelve una lista de productos con paginación y opciones de filtrado.
 
 #### **Query Params disponibles:**
 
-- `limit` => Cantidad de productos que devuelve.  
-  **Ejemplo**: `/api/products?limit=5`  
-  Devuelve 5 productos.
-- `page` => Página de los productos.  
-  **Ejemplo**: `/api/products?page=2`  
-  Devuelve la segunda página de productos.
+- `limit`: Cantidad de productos por página. (Por defecto: 10)
+- `page`: Número de página. (Por defecto: 1)
+- `sort`: Ordenar por precio (`asc` o `desc`).
+- `query`: Filtrar por categoría o estado (`true` para activos, `false` para inactivos).
 
-- `sort` => Ordenar por precio (`asc` o `desc`).  
-  **Ejemplo**: `/api/products?sort=asc`  
-  Ordena los productos por precio de menor a mayor.
-
-- `query` => Filtrar por categoría.  
-  **Ejemplo**: `/api/products?query=Electrónica`  
-  Devuelve productos de la categoría "Electrónica".
-
-- `query` => Filtrar productos activos (`true`) o inactivos (`false`).  
-  **Ejemplo**: `/api/products?query=true`  
-  Devuelve productos que están activos.
+**Ejemplo:** `/api/products?limit=5&page=2&sort=asc&query=Electrónica`
 
 ---
 
-## **Carritos:**
+### **Crear un producto (solo para administradores)**
 
-### **DELETE** `/api/carts/:cid/products/:pid`
+**POST** `/api/products`
 
-Eliminar un producto específico del carrito.
+**Headers:**
 
-- **`cid`**: El ID del carrito (ObjectId de MongoDB).
-- **`pid`**: El ID del producto (ObjectId de MongoDB).
+```
+Authorization: Bearer <TOKEN>
+```
 
-**Ejemplo**:  
-`DELETE http://localhost:8080/api/carts/60f528c54cd11116d1dd517/products/60f528c54cd11116d1dd518`
-
----
-
-### **PUT** `/api/carts/:cid`
-
-Actualiza el carrito con los productos y las cantidades indicadas en el body.
-
-#### **Ejemplo de body**:
+**Body:**
 
 ```json
 {
-  "products": [
-    { "product": "670f528c54cd11116d1dd517", "quantity": 2 },
-    { "product": "670f528c54cd11116d1dd518", "quantity": 3 }
-  ]
+  "title": "Producto de prueba",
+  "description": "Un excelente producto",
+  "code": "TEST001",
+  "price": 100,
+  "stock": 50,
+  "category": "general",
+  "thumbnails": ["https://example.com/image.jpg"]
 }
 ```
 
 ---
 
-### **PUT** `/api/carts/:cid/products/:pid`
+### **Eliminar un producto (solo para administradores)**
 
-Actualizar la cantidad de un producto en el carrito.
+**DELETE** `/api/products/:id`
 
-#### **Ejemplo de body**:
+**Headers:**
+
+```
+Authorization: Bearer <TOKEN>
+```
+
+**Ejemplo:**
+`DELETE http://localhost:8080/api/products/<PRODUCT_ID>`
+
+---
+
+## **Carritos**
+
+### **Crear un carrito**
+
+**POST** `/api/carts`
+
+**Headers:**
+
+```
+Authorization: Bearer <TOKEN>
+```
+
+---
+
+### **Agregar producto al carrito**
+
+**POST** `/api/carts/:cid/product/:pid`
+
+**Headers:**
+
+```
+Authorization: Bearer <TOKEN>
+```
+
+**Ejemplo:**
+`POST http://localhost:8080/api/carts/<CART_ID>/product/<PRODUCT_ID>`
+
+---
+
+### **Eliminar un producto del carrito**
+
+**DELETE** `/api/carts/:cid/products/:pid`
+
+**Headers:**
+
+```
+Authorization: Bearer <TOKEN>
+```
+
+**Ejemplo:**
+`DELETE http://localhost:8080/api/carts/<CART_ID>/products/<PRODUCT_ID>`
+
+---
+
+### **Actualizar la cantidad de un producto en el carrito**
+
+**PUT** `/api/carts/:cid/products/:pid`
+
+**Headers:**
+
+```
+Authorization: Bearer <TOKEN>
+```
+
+**Body:**
 
 ```json
 {
-  "quantity": 5
+  "quantity": 3
 }
 ```
 
 ---
 
-### **DELETE** `/api/carts/:cid`
+### **Vaciar el carrito**
 
-Limpia el carrito (elimina todos los productos del carrito).
+**DELETE** `/api/carts/:cid`
 
-**Ejemplo**:  
-`DELETE http://localhost:8080/api/carts/60f528c54cd11116d1dd517`
+**Headers:**
+
+```
+Authorization: Bearer <TOKEN>
+```
+
+**Ejemplo:**
+`DELETE http://localhost:8080/api/carts/<CART_ID>`
 
 ---
+
+### **Ver productos del carrito**
+
+**GET** `/api/carts/:cid`
+
+**Headers:**
+
+```
+Authorization: Bearer <TOKEN>
+```
+
+**Ejemplo:**
+`GET http://localhost:8080/api/carts/<CART_ID>`

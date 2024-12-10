@@ -1,92 +1,113 @@
 const express = require("express");
 const router = express.Router();
-const Product = require("../models/Product"); // Importar el modelo de producto
+const Product = require("../models/Product");
+const passport = require("passport");
+const authorization = require("../middlewares/authorization");
 
-// GET /api/products - Lista todos los productos con paginación, filtros y ordenamiento
-router.get("/", async (req, res) => {
-  try {
-    let { limit = 10, page = 1, sort, query } = req.query; // Leer parámetros de consulta
-    limit = parseInt(limit) || 10;
-    page = parseInt(page) || 1;
+// GET /api/products - Obtener productos (disponible para todos los usuarios autenticados)
+router.get(
+  "/",
+  passport.authenticate("jwt", { session: false }),
+  async (req, res) => {
+    try {
+      let { limit = 10, page = 1, sort, query } = req.query;
+      limit = parseInt(limit) || 10;
+      page = parseInt(page) || 1;
 
-    // Crear el filtro de búsqueda
-    let filter = {};
-    if (query) {
-      // Filtrar por categoría o estado
-      filter = { $or: [{ category: query }, { status: query === "true" }] };
+      let filter = {};
+      if (query) {
+        filter = { $or: [{ category: query }, { status: query === "true" }] };
+      }
+
+      let productsQuery = Product.find(filter);
+      if (sort) {
+        const sortOrder = sort === "asc" ? 1 : -1;
+        productsQuery = productsQuery.sort({ price: sortOrder });
+      }
+
+      const totalProducts = await Product.countDocuments(filter);
+      const totalPages = Math.ceil(totalProducts / limit);
+
+      const products = await productsQuery
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .exec();
+
+      res.json({
+        status: "success",
+        payload: products,
+        totalPages,
+        prevPage: page > 1 ? page - 1 : null,
+        nextPage: page < totalPages ? page + 1 : null,
+        page,
+        hasPrevPage: page > 1,
+        hasNextPage: page < totalPages,
+        prevLink:
+          page > 1 ? `/api/products?limit=${limit}&page=${page - 1}` : null,
+        nextLink:
+          page < totalPages
+            ? `/api/products?limit=${limit}&page=${page + 1}`
+            : null,
+      });
+    } catch (error) {
+      res.status(500).json({ status: "error", message: error.message });
+    }
+  }
+);
+
+// POST /api/products - Crear un producto (solo para admin)
+router.post(
+  "/",
+  passport.authenticate("jwt", { session: false }),
+  authorization("admin"),
+  async (req, res) => {
+    const { title, description, code, price, stock, category, thumbnails } =
+      req.body;
+
+    if (!title || !description || !code || !price || !stock || !category) {
+      return res
+        .status(400)
+        .json({ message: "Todos los campos son obligatorios" });
     }
 
-    // Crear la consulta de productos con el filtro
-    let productsQuery = Product.find(filter);
+    try {
+      const newProduct = new Product({
+        title,
+        description,
+        code,
+        price,
+        stock,
+        category,
+        thumbnails: thumbnails || [],
+      });
 
-    // Aplicar el ordenamiento si se especifica
-    if (sort) {
-      const sortOrder = sort === "asc" ? 1 : -1;
-      productsQuery = productsQuery.sort({ price: sortOrder });
+      await newProduct.save();
+      res.status(201).json({ status: "success", product: newProduct });
+    } catch (error) {
+      res.status(500).json({ status: "error", message: error.message });
     }
-
-    // Obtener el total de productos para la paginación
-    const totalProducts = await Product.countDocuments(filter);
-    const totalPages = Math.ceil(totalProducts / limit);
-
-    // Ejecutar la consulta con paginación
-    const products = await productsQuery
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .exec();
-
-    // Responder con los productos y la información de paginación
-    res.json({
-      status: "success",
-      payload: products,
-      totalPages,
-      prevPage: page > 1 ? page - 1 : null,
-      nextPage: page < totalPages ? page + 1 : null,
-      page,
-      hasPrevPage: page > 1,
-      hasNextPage: page < totalPages,
-      prevLink:
-        page > 1 ? `/api/products?limit=${limit}&page=${page - 1}` : null,
-      nextLink:
-        page < totalPages
-          ? `/api/products?limit=${limit}&page=${page + 1}`
-          : null,
-    });
-  } catch (error) {
-    res.status(500).json({ status: "error", message: error.message });
   }
-});
+);
 
-// POST /api/products - Agregar un nuevo producto
-router.post("/", async (req, res) => {
-  const { title, description, code, price, stock, category, thumbnails } =
-    req.body;
+// DELETE /api/products/:id - Eliminar un producto (solo para admin)
+router.delete(
+  "/:id",
+  passport.authenticate("jwt", { session: false }),
+  authorization("admin"),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const product = await Product.findByIdAndDelete(id);
 
-  // Verificar que todos los campos requeridos están presentes
-  if (!title || !description || !code || !price || !stock || !category) {
-    return res
-      .status(400)
-      .json({ message: "Todos los campos son obligatorios" });
+      if (!product) {
+        return res.status(404).json({ message: "Producto no encontrado" });
+      }
+
+      res.json({ message: "Producto eliminado exitosamente" });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
   }
-
-  try {
-    // Crear el nuevo producto
-    const newProduct = new Product({
-      title,
-      description,
-      code,
-      price,
-      stock,
-      category,
-      thumbnails: thumbnails || [],
-    });
-
-    // Guardar el producto en la base de datos
-    await newProduct.save();
-    res.status(201).json({ status: "success", product: newProduct });
-  } catch (error) {
-    res.status(500).json({ status: "error", message: error.message });
-  }
-});
+);
 
 module.exports = router;
